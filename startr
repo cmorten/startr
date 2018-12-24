@@ -1,0 +1,593 @@
+#!/bin/bash
+
+function log() {
+    m_time=`date "+%F %T"`
+    echo -e "${m_time} [startr]: $1"
+}
+
+function print_usage() {
+  echo " "
+  echo "USAGE:"
+  echo "./startr [options]"
+  echo " "
+  echo "options:"
+  echo "-n              specify name              [required]"
+  echo "-u              specify GitHub username   [required if not already configured]"
+  echo "-p              specify GitHub password   [required if not already configured]"
+  echo "-e              specify email             [required if not already configured]"
+  echo "-h, --help      show help"
+  echo " "
+}
+
+if [ $# -eq 0 ]; then
+  log "ERROR: Missing required options"
+  print_usage
+  exit 1
+fi
+
+while test $# -gt 0; do
+  case "$1" in
+    -h|--help)
+      print_usage
+      exit 0
+      ;;
+    -n)
+      shift
+      if test $# -gt 0; then
+        export NAME=$1
+      else
+        log "ERROR: No name specified"
+        print_usage
+        exit 1
+      fi
+      shift
+      ;;
+    -u)
+      shift
+      if test $# -gt 0; then
+        export GITHUB_USERNAME=$1
+      else
+        log "ERROR: No GitHub username specified"
+        print_usage
+        exit 1
+      fi
+      shift
+      ;;
+    -p)
+      shift
+      if test $# -gt 0; then
+        export GITHUB_PASSWORD=$1
+      else
+        log "ERROR: No GitHub password specified"
+        print_usage
+        exit 1
+      fi
+      shift
+      ;;
+    -e)
+      shift
+      if test $# -gt 0; then
+        export EMAIL=$1
+      else
+        log "ERROR: No email specified"
+        print_usage
+        exit 1
+      fi
+      shift
+      ;;
+    *)
+      print_usage
+      exit 1
+      ;;
+  esac
+done
+
+export EMAIL=${EMAIL:-$(git config --get user.email)}
+export GITHUB_USERNAME=${GITHUB_USERNAME:-$(git config --get user.name)}
+export GITHUB_PASSWORD=${GITHUB_PASSWORD:-$(security find-generic-password -a ${GITHUB_USERNAME} -s github-user-pass -w}
+
+if [ -z ${NAME} ]; then
+  log "ERROR: Missing NAME"
+  print_usage
+  exit 1
+fi
+if [ -z ${EMAIL} ]; then
+  log "ERROR: Missing EMAIL"
+  print_usage
+  exit 1
+fi
+if [ -z ${GITHUB_USERNAME} ]; then
+  log "ERROR: Missing GITHUB_USERNAME"
+  print_usage
+  exit 1
+fi
+if [ -z ${GITHUB_PASSWORD} ]; then
+  log "ERROR: Missing GITHUB_PASSWORD"
+  print_usage
+  exit 1
+fi
+
+## Constants
+
+brews=(
+  bash
+  bash-completion2
+  zsh
+  coreutils
+  findutils
+  moreutils
+  mas
+  tree
+  trash
+  fpp
+  dfc
+  mtr
+  gpg
+  sf-pwgen
+  git
+  git-extras
+  git-fresh
+  git-lfs
+  go
+  node
+  python
+  python3
+  ruby
+  rbenv
+  ruby-build
+  scala
+  sbt
+  kubernetes-cli
+  kubernetes-helm
+  awscli
+  azure-cli
+  "bash-snippets --without-all-tools --with-cryptocurrency --with-stocks --with-weather"
+  "fontconfig --universal"
+  "gnuplot --with-qt"
+  "gnu-sed --with-default-names"
+  "imagemagick --with-webp"
+  "vim --with-override-system-vi"
+  "wget --with-iri"
+)
+
+casks=(
+  java
+  gpg-suite
+  iterm2
+  vagrant
+  virtualbox
+  vlc
+  spotify
+  dropbox
+  skype
+  slack
+  teams
+  visual-studio-code
+  android-platform-tools
+  cleanmymac
+  docker
+  firefox
+  google-chrome
+  opera
+)
+
+apps=(
+  "CopyClip - Clipboard History"
+)
+
+pips=(
+  pip
+  setuptools
+  wheel
+  powerline-status
+)
+
+gems=(
+  bundler
+  travis
+)
+
+npms=(
+  n
+  npm
+  eslint
+  tslint
+  react-create-app
+  "@angular/cli"
+)
+
+vscodes=(
+  "dbaeumer.vscode-eslint"
+  "eg2.tslint"
+  "christian-kohler.path-intellisense"
+  "pkief.material-icon-theme"
+  "formulahendry.auto-close-tag"
+  "formulahendry.auto-rename-tag"
+  "formulahendry.code-runner"
+  "gencer.html-slim-scss-css-class-completion"
+  "quicktype.quicktype"
+  "wayou.vscode-todo-highlight"
+  "xabikos.javascriptsnippets"
+  "eg2.vscode-npm-script"
+  "christian-kohler.npm-intellisense"
+  "mikael.angular-beastcode"
+  "octref.vetur"
+  "walter-ribeiro.full-react-snippets"
+  "orta.vscode-jest"
+  "andys8.jest-snippets"
+  "vsmobile.vscode-react-native"
+  "hookyqr.beautify"
+  "peterjausovec.vscode-docker"
+  "ms-vscode.go"
+)
+
+git_configs=(
+  "branch.autoSetupRebase always"
+  "color.ui auto"
+  "core.autocrlf input"
+  "credential.helper osxkeychain"
+  "merge.ff false"
+  "pull.rebase true"
+  "push.default simple"
+  "rebase.autostash true"
+  "rerere.autoUpdate true"
+  "rerere.enabled true"
+  "commit.gpgsign true"
+)
+
+## Utils
+
+function dget() {
+  temp_dir=$(mktemp -d)
+  mkdir -p ${temp_dir}/mount
+  curl -fsSL ${1} > ${temp_dir}/package.dmg
+  yes | hdiutil attach -noverify -nobrowse ${temp_dir}/package.dmg
+  cp -r ${temp_dir}/mount/*.app /Applications
+  hdiutil detach {temp_dir}/mount
+  rm -rf ${temp_dir}
+}
+
+function wrap {
+  cmd=$1
+  shift
+  for pkg in "$@"; do
+    exec="$cmd $pkg"
+    log "Executing $exec"
+    if ${exec}; then
+      log "Installed $pkg"
+    else
+      log "ERROR: Failed to execute $exec"
+      exit 1
+    fi
+  done
+}
+
+function brew_install_or_upgrade {
+  if brew ls --versions "$1" >/dev/null; then
+    if (brew outdated | grep "$1" > /dev/null); then 
+      log "Upgrading already installed package $1 ..."
+      brew upgrade "$1"
+    else 
+      log "Latest $1 is already installed"
+    fi
+  else
+    brew install "$1"
+  fi
+}
+
+function brew_cask_install_or_upgrade {
+  if brew cask ls --versions "$1" >/dev/null; then
+    if (brew cask outdated | grep "$1" > /dev/null); then 
+      log "Upgrading already installed app $1 ..."
+      brew cask upgrade "$1"
+    else 
+      log "Latest $1 is already installed"
+    fi
+  else
+    brew cask install "$1"
+  fi
+}
+
+function npm_install_or_upgrade {
+  if npm list --global "$1" | grep -q "$1"; then
+    if (npm outdated --global "$1" | grep "$1" > /dev/null); then 
+      log "Upgrading already installed app $1 ..."
+      nnpm upgrade --global "$1"
+    else 
+      log "Latest $1 is already installed"
+    fi
+  else
+    npm install --global "$1"
+  fi
+}
+
+function mas_install_or_upgrade {
+  mas_id=$(mas search "$1" | awk '{print $1}')
+  if mas list | grep -q "$1"; then
+    if (mas outdated | grep "$1" > /dev/null); then 
+      log "Upgrading already installed app $1 ..."
+      mas upgrade ${mas_id}
+    else 
+      log "Latest $1 is already installed"
+    fi
+  else
+    mas install ${mas_id}
+  fi
+}
+
+## Main script
+
+# Setup xcode
+if ! xcode-select -p > /dev/null; then
+  log "Installing xcode..."
+  xcode-select --install || true
+fi
+
+
+# Setup brew
+export PATH="/usr/local/sbin:$PATH"
+if test ! $(which brew); then
+  log "Installing Homebrew..."
+  ruby -e "$(curl -fsSL https://raw.githubusercontent/com/Homebrew/install/master/install)"
+else
+  log "Updating Homebrew..."
+  brew update
+  brew upgrade
+  brew doctor
+fi
+export HOMEBREW_NO_AUTO_UPDATE=1
+
+
+log "Installing Homebrew packages..."
+brew tap caskroom/versions
+wrap 'brew_cask_install_or_upgrade' "${casks[@]}"
+wrap 'brew_install_or_upgrade' "${brews[@]}"
+brew cleanup
+
+
+# Setting up variables needed for install
+mkdir -p ~/go
+export RBENV_ROOT="$(brew --prefix rbenv)"
+export GEM_HOME="$(brew --prefix)/opt/gems"
+export GEM_PATH="$(brew --prefix)/opt/gems"
+export PATH="${PATH}:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
+
+
+log "Install secondary packages..."
+wrap 'pip3 install --upgrade' "${pips[@]}"
+wrap 'gem install' "${gems[@]}"
+wrap 'npm_install_or_upgrade' "${npms[@]}"
+wrap 'mas_install_or_upgrade' "${apps[@]}"
+wrap 'code --install-extension' "${vscodes[@]}"
+
+
+log "Creating bash profile..."
+cat > ~/.bash_profile << EOL
+# Common
+export EMAIL="${EMAIL}"
+export NAME="${NAME}"
+export GITHUB_USERNAME="${GITHUB_USERNAME}"
+export GITHUB_PASSWORD=\$(security find-generic-password -a \${GITHUB_USERNAME} -s github-user-pass -w)
+export SSH_USERNAME=\${EMAIL}
+export SSH_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s ssh-user-pass -w)
+export GPG_USERNAME=\${EMAIL}
+export GPG_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s gpg-user-pass -w)
+
+# Aliases
+alias ll="ls -la"
+alias k="kubectl"
+alias h="helm"
+alias hi="helm install"
+
+# Golang
+export GOPATH=~/go
+export GOROOT=/usr/local/opt/go/libexec
+export GOBIN=\${GOPATH}/bin
+
+# Ruby
+export RBENV_ROOT=\$(brew --prefix rbenv)
+export GEM_HOME=\$(brew --prefix)/opt/gems
+export GEM_PATH=\$(brew --prefix)/opt/gems
+
+# Path
+export PATH="/usr/local/sbin:\${PATH}"
+export PATH=\${PATH}:\${GOPATH}
+export PATH=\${PATH}:\${GOROOT}/bin
+export PATH="\${PATH}:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
+EOL
+source ~/.bash_profile
+
+
+log "Setting up gpg..."
+gpg --with-colons --list-secret-keys | grep -q "${NAME} <${EMAIL}>"
+gpg_exists=$?
+if [ ${gpg_exists} -ne 0 ]; then
+  export GPG_PASSWORD=$(sf-pwgen -a memorable -c 1 -l 16 -L en)
+  security add-generic-password \
+    -U \
+    -a ${EMAIL} \
+    -s gpg-user-pass \
+    -w ${GPG_PASSWORD}
+
+  gpg --batch --full-generate-key << EOF
+      %echo Generating gpg key
+      Key-Type: RSA
+      Key-Length: 4096
+      Subkey-Type: RSA
+      Subkey-Length: 4096
+      Name-Real: ${NAME}
+      Name-Email: ${EMAIL}
+      Expire-Date: 0
+      Passphrase: ${GPG_PASSWORD}
+      %commit
+      %echo done
+EOF
+fi
+SIGNING_KEY=$(gpg --with-colons --list-secret-keys | grep "${NAME} <${EMAIL}>" -B 2 | awk -F: '$1 == "fpr" {print $10;}')
+log "Your GPG fingerprint is ${SIGNING_KEY}"
+gpg --armor --export ${SIGNING_KEY} > ~/.gnupg/id_pgp.pub
+
+
+log "Setting up SSH..."
+mkdir -p ~/.ssh/
+if [ ! -f ~/.ssh/id_rsa ]; then
+  export SSH_PASSWORD=$(sf-pwgen -a memorable -c 1 -l 16 -L en)
+  security add-generic-password \
+    -U \
+    -a ${EMAIL} \
+    -s ssh-user-pass \
+    -w ${SSH_PASSWORD}
+  ssh-keygen -t rsa -f ~/.ssh/id_rsa -P ${SSH_PASSWORD}
+fi
+
+eval "$(ssh-agent -s)"
+cat > ~/.ssh/config << EOL
+Host *
+    AddKeysToAgent yes
+    UseKeychain yes
+    User ${GITHUB_USERNAME}
+    IdentityFile ~/.ssh/id_rsa
+EOL
+ssh-add -K ~/.ssh/id_rsa
+
+
+log "Configuring git..."
+mkdir -p ~/git
+baked_git_configs=(
+  "user.name ${GITHUB_USERNAME}"
+  "user.email ${EMAIL}"
+  "user.signingkey ${SIGNING_KEY}"
+)
+for config in "${git_configs[@]}"; do
+  git config --global ${config}
+done
+for config in "${baked_git_configs[@]}"; do
+  git config --global ${config}
+done
+
+
+log "Configuring GitHub..."
+security add-generic-password \
+  -U \
+  -a ${GITHUB_USERNAME} \
+  -s github-user-pass \
+  -w ${GITHUB_PASSWORD}
+
+curl -X POST \
+  -u "${GITHUB_USERNAME}:${GITHUB_PASSWORD}" \
+  --data '{"title":"'${GITHUB_USERNAME}'","key":"'"$(cat ~/.ssh/id_rsa.pub)"'"}' \
+  'https://api.github.com/user/keys'
+
+IFS= read -r -d '' gpg_content < ~/.gnupg/id_pgp.pub
+parsed_gpg_key=${gpg_content//$'\n'/'\n'}
+
+curl -X POST \
+  -u "${GITHUB_USERNAME}:${GITHUB_PASSWORD}" \
+  --data '{"armored_public_key":"'"${parsed_gpg_key}"'"}' \
+  'https://api.github.com/user/gpg_keys'
+
+
+log "Setting up defaults..."
+# Disabling OS X Gate Keeper
+# Allows installing of apps not in App Store
+spctl --master-disable
+sudo defaults write /var/db/SystemPolicy-prefs.plist enabled -string no
+defaults write com.apple.LaunchServices LSQuarantine -bool false
+
+# Expand save panel by default
+defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
+defaults write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true
+defaults write NSGlobalDomain PMPrintingExpandedStateForPrint2 -bool true
+
+# Check for software updates daily, not just once per week
+defaults write com.apple.SoftwareUpdate ScheduleFrequency -int 1
+
+# Disable smart quotes and smart dashes as they are annoying when typing code
+defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
+defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
+
+# Enabling full keyboard access for all controls (e.g. enable Tab in modal dialogs)
+defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
+
+# Enabling subpixel font rendering on non-Apple LCDs
+defaults write NSGlobalDomain AppleFontSmoothing -int 2
+
+# Showing icons for hard drives, servers, and removable media on the desktop
+defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
+
+# Showing all filename extensions in Finder by default
+defaults write NSGlobalDomain AppleShowAllExtensions -bool true
+
+# Disabling the warning when changing a file extension
+defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
+
+# Avoiding the creation of .DS_Store files on network volumes
+defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+
+# Setting email addresses to copy as 'foo@example.com' instead of 'Foo Bar <foo@example.com>' in Mail.app
+defaults write com.apple.mail AddressesIncludeNameOnPasteboard -bool false
+
+# Speeding up wake from sleep to 24 hours from an hour
+# REF: http://www.cultofmac.com/221392/quick-hack-speeds-up-retina-macbooks-wake-from-sleep-os-x-tips/
+sudo pmset -a standbydelay 86400
+
+# Disable annoying backswipe in Chrome
+defaults write com.google.Chrome AppleEnableSwipeNavigateWithScrolls -bool false
+
+# Setting screenshots location to ~/Desktop
+defaults write com.apple.screencapture location -string "$HOME/Desktop"
+
+# Setting screenshot format to PNG
+defaults write com.apple.screencapture type -string "png"
+
+killall Finder
+
+
+log "Creating zsh profile..."
+export ZSH=${ZSH:-~/.oh-my-zsh}
+export ZSH_CUSTOM=${ZSH_CUSTOM:-${ZSH}/custom}
+if [ ! -d ~/.oh-my-zsh ] || [ ! -f ~/.zshrc ]; then
+  rm -rf ~/.zshrc
+  rm -rf ~/.oh-my-zsh
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+fi
+
+if [ ! -d ~/git/powerline/fonts ]; then
+  mkdir -p ~/git/powerline
+  git clone git@github.com:powerline/fonts.git ~/git/powerline/fonts
+fi
+~/git/powerline/fonts/install.sh
+
+if [ ! -d ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting ]; then
+  git clone git@github.com:zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting
+fi
+if [ ! -d ${ZSH_CUSTOM}/plugins/zsh-autosuggestions ]; then
+  git clone git@github.com:zsh-users/zsh-autosuggestions ${ZSH_CUSTOM}/plugins/zsh-autosuggestions
+fi
+if [ ! -d ${ZSH_CUSTOM}custom/plugins/kube-aliases ]; then
+  git clone git@github.com:Dbz/kube-aliases.git ${ZSH_CUSTOM}custom/plugins/kube-aliases
+fi
+
+gsed -i 's/^ZSH_THEME=.*/ZSH_THEME="agnoster"/' ~/.zshrc
+gsed -n -i '/# -- autogen --/q;p' ~/.zshrc
+
+cat >> ~/.zshrc << EOL
+# -- autogen --
+
+# Custom
+plugins+=(
+  zsh-syntax-highlighting
+  zsh-autosuggestions
+  kube-aliases
+  golang
+  kubectl
+  helm
+  node
+)
+source \${ZSH}/oh-my-zsh.sh
+source ~/.bash_profile
+EOL
+
+zsh -c "source ~/.zshrc"
+
+log "Setup complete..."
