@@ -141,6 +141,7 @@ brews=(
   kubernetes-helm
   awscli
   azure-cli
+  packer
   "bash-snippets --without-all-tools --with-cryptocurrency --with-stocks --with-weather"
   "fontconfig --universal"
   "gnuplot --with-qt"
@@ -233,6 +234,7 @@ git_configs=(
   "rerere.autoUpdate true"
   "rerere.enabled true"
   "commit.gpgsign true"
+  "gpg.program gpg2"
 )
 
 ## Utils
@@ -578,8 +580,8 @@ cat >> ~/.zshrc << EOL
 # Custom
 plugins+=(
   zsh-syntax-highlighting
-  zsh-autosuggestions
-  kube-aliases
+  # zsh-autosuggestions
+  # kube-aliases
   golang
   kubectl
   helm
