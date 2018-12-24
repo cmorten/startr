@@ -84,24 +84,24 @@ done
 
 export EMAIL=${EMAIL:-$(git config --get user.email)}
 export GITHUB_USERNAME=${GITHUB_USERNAME:-$(git config --get user.name)}
-export GITHUB_PASSWORD=${GITHUB_PASSWORD:-$(security find-generic-password -a ${GITHUB_USERNAME} -s github-user-pass -w}
+export GITHUB_PASSWORD=${GITHUB_PASSWORD:-$(security find-generic-password -a ${GITHUB_USERNAME} -s github-user-pass -w)}
 
-if [ -z ${NAME} ]; then
+if [[ -z ${NAME} ]]; then
   log "ERROR: Missing NAME"
   print_usage
   exit 1
 fi
-if [ -z ${EMAIL} ]; then
+if [[ -z ${EMAIL} ]]; then
   log "ERROR: Missing EMAIL"
   print_usage
   exit 1
 fi
-if [ -z ${GITHUB_USERNAME} ]; then
+if [[ -z ${GITHUB_USERNAME} ]]; then
   log "ERROR: Missing GITHUB_USERNAME"
   print_usage
   exit 1
 fi
-if [ -z ${GITHUB_PASSWORD} ]; then
+if [[ -z ${GITHUB_PASSWORD} ]]; then
   log "ERROR: Missing GITHUB_PASSWORD"
   print_usage
   exit 1
@@ -372,6 +372,7 @@ export SSH_USERNAME=\${EMAIL}
 export SSH_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s ssh-user-pass -w)
 export GPG_USERNAME=\${EMAIL}
 export GPG_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s gpg-user-pass -w)
+export GPG_TTY=$(tty)
 
 # Aliases
 alias ll="ls -la"
