@@ -162,10 +162,9 @@ casks=(
   dropbox
   skype
   slack
-  teams
+  microsoft-teams
   visual-studio-code
   android-platform-tools
-  cleanmymac
   docker
   firefox
   google-chrome
@@ -294,7 +293,7 @@ function npm_install_or_upgrade {
   if npm list --global "$1" | grep -q "$1"; then
     if (npm outdated --global "$1" | grep "$1" > /dev/null); then 
       log "Upgrading already installed app $1 ..."
-      nnpm upgrade --global "$1"
+      npm upgrade --global "$1"
     else 
       log "Latest $1 is already installed"
     fi
@@ -374,7 +373,7 @@ export SSH_USERNAME=\${EMAIL}
 export SSH_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s ssh-user-pass -w)
 export GPG_USERNAME=\${EMAIL}
 export GPG_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s gpg-user-pass -w)
-export GPG_TTY=$(tty)
+export GPG_TTY=\$(tty)
 
 # Aliases
 alias ll="ls -la"
@@ -580,12 +579,6 @@ cat >> ~/.zshrc << EOL
 # Custom
 plugins+=(
   zsh-syntax-highlighting
-  # zsh-autosuggestions
-  # kube-aliases
-  golang
-  kubectl
-  helm
-  node
 )
 source \${ZSH}/oh-my-zsh.sh
 source ~/.bash_profile
