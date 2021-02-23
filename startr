@@ -128,7 +128,7 @@ brews=(
   git-extras
   git-fresh
   git-lfs
-  go
+#  go
   node
   python
   python3
@@ -149,22 +149,22 @@ brews=(
 
 casks=(
   java
-  gpg-suite
-  vagrant
-  virtualbox
-  spotify
-  dropbox
-  slack
-  microsoft-teams
-  visual-studio-code
-  android-platform-tools
-  docker
-  firefox
-  google-chrome
+#  gpg-suite
+#  vagrant
+#  virtualbox
+#  spotify
+#  dropbox
+#  slack
+#  microsoft-teams
+#  visual-studio-code
+#  android-platform-tools
+#  docker
+#  firefox
+#  google-chrome
 )
 
 apps=(
-  "CopyClip - Clipboard History"
+#  "CopyClip - Clipboard History"
 )
 
 pips=(
@@ -188,28 +188,28 @@ npms=(
 )
 
 vscodes=(
-  "dbaeumer.vscode-eslint"
-  "eg2.tslint"
-  "christian-kohler.path-intellisense"
-  "pkief.material-icon-theme"
-  "formulahendry.auto-close-tag"
-  "formulahendry.auto-rename-tag"
-  "formulahendry.code-runner"
-  "gencer.html-slim-scss-css-class-completion"
-  "quicktype.quicktype"
-  "wayou.vscode-todo-highlight"
-  "xabikos.javascriptsnippets"
-  "eg2.vscode-npm-script"
-  "christian-kohler.npm-intellisense"
-  "mikael.angular-beastcode"
-  "octref.vetur"
-  "walter-ribeiro.full-react-snippets"
-  "orta.vscode-jest"
-  "andys8.jest-snippets"
-  "vsmobile.vscode-react-native"
-  "hookyqr.beautify"
-  "peterjausovec.vscode-docker"
-  "ms-vscode.go"
+#  "dbaeumer.vscode-eslint"
+#  "eg2.tslint"
+#  "christian-kohler.path-intellisense"
+#  "pkief.material-icon-theme"
+#  "formulahendry.auto-close-tag"
+#  "formulahendry.auto-rename-tag"
+#  "formulahendry.code-runner"
+#  "gencer.html-slim-scss-css-class-completion"
+#  "quicktype.quicktype"
+#  "wayou.vscode-todo-highlight"
+#  "xabikos.javascriptsnippets"
+#  "eg2.vscode-npm-script"
+#  "christian-kohler.npm-intellisense"
+#  "mikael.angular-beastcode"
+#  "octref.vetur"
+#  "walter-ribeiro.full-react-snippets"
+#  "orta.vscode-jest"
+#  "andys8.jest-snippets"
+#  "vsmobile.vscode-react-native"
+#  "hookyqr.beautify"
+#  "peterjausovec.vscode-docker"
+#  "ms-vscode.go"
 )
 
 git_configs=(
@@ -307,7 +307,7 @@ fi
 export PATH="/usr/local/sbin:$PATH"
 if test ! $(which brew); then
   log "Installing Homebrew..."
-  ruby -e "$(curl -fsSL https://raw.githubusercontent/com/Homebrew/install/master/install)"
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 else
   log "Updating Homebrew..."
   brew update
@@ -325,7 +325,6 @@ brew cleanup
 
 
 # Setting up variables needed for install
-mkdir -p ~/go
 export RBENV_ROOT="$(brew --prefix rbenv)"
 export GEM_HOME="$(brew --prefix)/opt/gems"
 export GEM_PATH="$(brew --prefix)/opt/gems"
@@ -343,14 +342,6 @@ wrap 'code --install-extension' "${vscodes[@]}"
 log "Creating bash profile..."
 cat > ~/.bash_profile << EOL
 # Common
-export EMAIL="${EMAIL}"
-export NAME="${NAME}"
-export GITHUB_USERNAME="${GITHUB_USERNAME}"
-export GITHUB_PASSWORD=\$(security find-generic-password -a \${GITHUB_USERNAME} -s github-user-pass -w)
-export SSH_USERNAME=\${EMAIL}
-export SSH_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s ssh-user-pass -w)
-export GPG_USERNAME=\${EMAIL}
-export GPG_PASSWORD=\$(security find-generic-password -a \${EMAIL} -s gpg-user-pass -w)
 export GPG_TTY=\$(tty)
 
 # Aliases
@@ -359,11 +350,6 @@ alias k="kubectl"
 alias h="helm"
 alias hi="helm install"
 
-# Golang
-export GOPATH=~/go
-export GOROOT=/usr/local/opt/go/libexec
-export GOBIN=\${GOPATH}/bin
-
 # Ruby
 export RBENV_ROOT=\$(brew --prefix rbenv)
 export GEM_HOME=\$(brew --prefix)/opt/gems
@@ -371,8 +357,6 @@ export GEM_PATH=\$(brew --prefix)/opt/gems
 
 # Path
 export PATH="/usr/local/sbin:\${PATH}"
-export PATH=\${PATH}:\${GOPATH}
-export PATH=\${PATH}:\${GOROOT}/bin
 export PATH="\${PATH}:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
 EOL
 source ~/.bash_profile
@@ -381,6 +365,7 @@ source ~/.bash_profile
 log "Setting up gpg..."
 gpg --with-colons --list-secret-keys | grep -q "${NAME} <${EMAIL}>"
 gpg_exists=$?
+
 if [ ${gpg_exists} -ne 0 ]; then
   export GPG_PASSWORD=$(sf-pwgen -a memorable -c 1 -l 16 -L en)
   security add-generic-password \
@@ -403,6 +388,7 @@ if [ ${gpg_exists} -ne 0 ]; then
       %echo done
 EOF
 fi
+
 SIGNING_KEY=$(gpg --with-colons --list-secret-keys | grep "${NAME} <${EMAIL}>" -B 2 | awk -F: '$1 == "fpr" {print $10;}')
 log "Your GPG fingerprint is ${SIGNING_KEY}"
 gpg --armor --export ${SIGNING_KEY} > ~/.gnupg/id_pgp.pub
