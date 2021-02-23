@@ -135,13 +135,9 @@ brews=(
   ruby
   rbenv
   ruby-build
-  scala
-  sbt
   kubernetes-cli
   kubernetes-helm
-  awscli
   azure-cli
-  packer
   "bash-snippets --without-all-tools --with-cryptocurrency --with-stocks --with-weather"
   "fontconfig --universal"
   "gnuplot --with-qt"
@@ -154,13 +150,10 @@ brews=(
 casks=(
   java
   gpg-suite
-  iterm2
   vagrant
   virtualbox
-  vlc
   spotify
   dropbox
-  skype
   slack
   microsoft-teams
   visual-studio-code
@@ -168,7 +161,6 @@ casks=(
   docker
   firefox
   google-chrome
-  opera
 )
 
 apps=(
@@ -193,7 +185,6 @@ npms=(
   eslint
   tslint
   react-create-app
-  "@angular/cli"
 )
 
 vscodes=(
@@ -276,19 +267,6 @@ function brew_install_or_upgrade {
   fi
 }
 
-function brew_cask_install_or_upgrade {
-  if brew cask ls --versions "$1" >/dev/null; then
-    if (brew cask outdated | grep "$1" > /dev/null); then 
-      log "Upgrading already installed app $1 ..."
-      brew cask upgrade "$1"
-    else 
-      log "Latest $1 is already installed"
-    fi
-  else
-    brew cask install "$1"
-  fi
-}
-
 function npm_install_or_upgrade {
   if npm list --global "$1" | grep -q "$1"; then
     if (npm outdated --global "$1" | grep "$1" > /dev/null); then 
@@ -340,8 +318,8 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 
 
 log "Installing Homebrew packages..."
-brew tap caskroom/versions
-wrap 'brew_cask_install_or_upgrade' "${casks[@]}"
+brew tap homebrew/cask-versions
+wrap 'brew_install_or_upgrade' "${casks[@]}"
 wrap 'brew_install_or_upgrade' "${brews[@]}"
 brew cleanup
 
