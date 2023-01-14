@@ -516,7 +516,7 @@ defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
 
 # Showing icons for hard drives, servers, and removable media on the desktop
-defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
+defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool false
 
 # Showing all filename extensions in Finder by default
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
