@@ -13,7 +13,7 @@ function print_usage() {
   echo "options:"
   echo "-n              specify name              [required]"
   echo "-u              specify GitHub username   [required if not already configured]"
-  echo "-p              specify GitHub password   [required if not already configured]"
+  echo "-t              specify GitHub auth token [required if not already configured]"
   echo "-e              specify email             [required if not already configured]"
   echo "-h, --help      show help"
   echo " "
@@ -56,7 +56,7 @@ while test $# -gt 0; do
     -p)
       shift
       if test $# -gt 0; then
-        export GITHUB_PASSWORD=$1
+        export GITHUB_TOKEN=$1
       else
         log "ERROR: No GitHub password specified"
         print_usage
@@ -82,9 +82,15 @@ while test $# -gt 0; do
   esac
 done
 
+# Ask for the administrator password upfront
+sudo -v
+
+# Keep-alive: update existing `sudo` time stamp until `startr` has finished
+while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+
 export EMAIL=${EMAIL:-$(git config --get user.email)}
 export GITHUB_USERNAME=${GITHUB_USERNAME:-$(git config --get user.name)}
-export GITHUB_PASSWORD=${GITHUB_PASSWORD:-$(security find-generic-password -a ${GITHUB_USERNAME} -s github-user-pass -w)}
+export GITHUB_TOKEN=${GITHUB_TOKEN:-$(security find-generic-password -a ${GITHUB_USERNAME} -s github-user-token -w)}
 
 if [[ -z ${NAME} ]]; then
   log "ERROR: Missing NAME"
@@ -101,8 +107,8 @@ if [[ -z ${GITHUB_USERNAME} ]]; then
   print_usage
   exit 1
 fi
-if [[ -z ${GITHUB_PASSWORD} ]]; then
-  log "ERROR: Missing GITHUB_PASSWORD"
+if [[ -z ${GITHUB_TOKEN} ]]; then
+  log "ERROR: Missing GITHUB_TOKEN"
   print_usage
   exit 1
 fi
@@ -111,11 +117,14 @@ fi
 
 brews=(
   bash
-  bash-completion2
+  bash-completion
   zsh
   coreutils
   findutils
   moreutils
+  openssh
+  grep
+  screen
   mas
   tree
   trash
@@ -128,8 +137,10 @@ brews=(
   git-extras
   git-fresh
   git-lfs
-#  go
   node
+  deno
+  fnm
+  rustup
   python
   python3
   ruby
@@ -149,23 +160,17 @@ brews=(
 
 casks=(
   java
-#  gpg-suite
-#  vagrant
-#  virtualbox
-#  spotify
-#  dropbox
-#  slack
-#  microsoft-teams
-#  visual-studio-code
-#  android-platform-tools
-#  docker
-#  firefox
-#  google-chrome
+  gpg-suite
+  spotify
+  slack
+  visual-studio-code
+  android-platform-tools
+  docker
+  firefox
+  google-chrome
 )
 
-apps=(
-#  "CopyClip - Clipboard History"
-)
+apps=()
 
 pips=(
   pip
@@ -176,46 +181,32 @@ pips=(
 
 gems=(
   bundler
-  travis
 )
 
 npms=(
   n
   npm
+  yarn
   eslint
-  tslint
-  react-create-app
 )
 
 vscodes=(
-#  "dbaeumer.vscode-eslint"
-#  "eg2.tslint"
-#  "christian-kohler.path-intellisense"
-#  "pkief.material-icon-theme"
-#  "formulahendry.auto-close-tag"
-#  "formulahendry.auto-rename-tag"
-#  "formulahendry.code-runner"
-#  "gencer.html-slim-scss-css-class-completion"
-#  "quicktype.quicktype"
-#  "wayou.vscode-todo-highlight"
-#  "xabikos.javascriptsnippets"
-#  "eg2.vscode-npm-script"
-#  "christian-kohler.npm-intellisense"
-#  "mikael.angular-beastcode"
-#  "octref.vetur"
-#  "walter-ribeiro.full-react-snippets"
-#  "orta.vscode-jest"
-#  "andys8.jest-snippets"
-#  "vsmobile.vscode-react-native"
-#  "hookyqr.beautify"
-#  "peterjausovec.vscode-docker"
-#  "ms-vscode.go"
+  "streetsidesoftware.code-spell-checker"
+  "denoland.vscode-deno"
+  "ms-azuretools.vscode-docker"
+  "dbaeumer.vscode-eslint"
+  "waderyan.gitblame"
+  "pkief.material-icon-theme"
+  "christian-kohler.path-intellisense"
+  "esbenp.prettier-vscode"
+  "wayou.vscode-todo-highlight"
 )
 
 git_configs=(
   "branch.autoSetupRebase always"
   "color.ui auto"
   "core.autocrlf input"
+  "core.symlinks true"
   "credential.helper osxkeychain"
   "merge.ff false"
   "pull.rebase true"
@@ -225,6 +216,7 @@ git_configs=(
   "rerere.enabled true"
   "commit.gpgsign true"
   "gpg.program gpg2"
+  "init.defaultbranch main"
 )
 
 ## Utils
@@ -305,6 +297,7 @@ fi
 
 # Setup brew
 export PATH="/usr/local/sbin:$PATH"
+
 if test ! $(which brew); then
   log "Installing Homebrew..."
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -314,15 +307,20 @@ else
   brew upgrade
   brew doctor
 fi
-export HOMEBREW_NO_AUTO_UPDATE=1
 
+export HOMEBREW_NO_AUTO_UPDATE=1
 
 log "Installing Homebrew packages..."
 brew tap homebrew/cask-versions
+
 wrap 'brew_install_or_upgrade' "${casks[@]}"
 wrap 'brew_install_or_upgrade' "${brews[@]}"
+
 brew cleanup
 
+# Rust
+rustup-init -qy
+rustc --version
 
 # Setting up variables needed for install
 export RBENV_ROOT="$(brew --prefix rbenv)"
@@ -340,26 +338,37 @@ wrap 'code --install-extension' "${vscodes[@]}"
 
 
 log "Creating bash profile..."
-cat > ~/.bash_profile << EOL
-# Common
-export GPG_TTY=\$(tty)
-
+cat > ${HOME}/.bash_profile << EOL
 # Aliases
-alias ll="ls -la"
 alias k="kubectl"
-alias h="helm"
-alias hi="helm install"
+
+# HomeBrew
+export HOMEBREW_NO_AUTO_UPDATE=1
+
+# Golang
+export GOPATH=${HOME}/go
+export GOROOT=/usr/local/opt/go/libexec
+export GOBIN=${HOME}/go/bin
 
 # Ruby
-export RBENV_ROOT=\$(brew --prefix rbenv)
-export GEM_HOME=\$(brew --prefix)/opt/gems
-export GEM_PATH=\$(brew --prefix)/opt/gems
+export RBENV_ROOT=/usr/local/opt/rbenv
+export GEM_HOME=/usr/local/opt/gems
+export GEM_PATH=/usr/local/opt/gems
+
+# Rust
+. "${HOME}/.cargo/env"
+
+# Deno
+export DENO_INSTALL="${HOME}/.deno"
+
+# FNM
+eval "\$(fnm env --use-on-cd)"
+alias nvm="fnm"
 
 # Path
-export PATH="/usr/local/sbin:\${PATH}"
-export PATH="\${PATH}:/Applications/Visual Studio Code.app/Contents/Resources/app/bin"
+export PATH="/usr/local/sbin:\${GOPATH}:\${GOROOT}/bin:/Applications/Visual Studio Code.app/Contents/Resources/app/bin:\${DENO_INSTALL}/bin:${HOME}/.yarn/bin:${HOME}/.config/yarn/global/node_modules/.bin:\${PATH}"
 EOL
-source ~/.bash_profile
+source ${HOME}/.bash_profile
 
 
 log "Setting up gpg..."
@@ -391,34 +400,38 @@ fi
 
 SIGNING_KEY=$(gpg --with-colons --list-secret-keys | grep "${NAME} <${EMAIL}>" -B 2 | awk -F: '$1 == "fpr" {print $10;}')
 log "Your GPG fingerprint is ${SIGNING_KEY}"
-gpg --armor --export ${SIGNING_KEY} > ~/.gnupg/id_pgp.pub
+gpg --armor --export ${SIGNING_KEY} > ${HOME}/.gnupg/id_pgp.pub
 
 
 log "Setting up SSH..."
-mkdir -p ~/.ssh/
-if [ ! -f ~/.ssh/id_rsa ]; then
+mkdir -p ${HOME}/.ssh/
+if [ ! -f ${HOME}/.ssh/id_rsa ]; then
   export SSH_PASSWORD=$(sf-pwgen -a memorable -c 1 -l 16 -L en)
   security add-generic-password \
     -U \
     -a ${EMAIL} \
     -s ssh-user-pass \
     -w ${SSH_PASSWORD}
-  ssh-keygen -t rsa -f ~/.ssh/id_rsa -P ${SSH_PASSWORD}
+  ssh-keygen -t rsa -f ${HOME}/.ssh/id_rsa -P ${SSH_PASSWORD}
 fi
 
 eval "$(ssh-agent -s)"
-cat > ~/.ssh/config << EOL
+cat > ${HOME}/.ssh/config << EOL
 Host *
     AddKeysToAgent yes
+    IgnoreUnknown UseKeychain
     UseKeychain yes
     User ${GITHUB_USERNAME}
-    IdentityFile ~/.ssh/id_rsa
+    IdentityFile ${HOME}/.ssh/id_rsa
 EOL
-ssh-add -K ~/.ssh/id_rsa
+
+log "Adding SSH key, you will be prompted for you 'ssh-user-pass' password..."
+
+ssh-add ${HOME}/.ssh/id_rsa
 
 
 log "Configuring git..."
-mkdir -p ~/git
+mkdir -p ${HOME}/git
 baked_git_configs=(
   "user.name ${GITHUB_USERNAME}"
   "user.email ${EMAIL}"
@@ -436,47 +449,71 @@ log "Configuring GitHub..."
 security add-generic-password \
   -U \
   -a ${GITHUB_USERNAME} \
-  -s github-user-pass \
-  -w ${GITHUB_PASSWORD}
+  -s github-user-token \
+  -w ${GITHUB_TOKEN}
 
 curl -X POST \
-  -u "${GITHUB_USERNAME}:${GITHUB_PASSWORD}" \
-  --data '{"title":"'${GITHUB_USERNAME}'","key":"'"$(cat ~/.ssh/id_rsa.pub)"'"}' \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer ${GITHUB_TOKEN}"\
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  --data '{"title":"'${GITHUB_USERNAME}'","key":"'"$(cat ${HOME}/.ssh/id_rsa.pub)"'"}' \
   'https://api.github.com/user/keys'
 
-IFS= read -r -d '' gpg_content < ~/.gnupg/id_pgp.pub
+IFS= read -r -d '' gpg_content < ${HOME}/.gnupg/id_pgp.pub
 parsed_gpg_key=${gpg_content//$'\n'/'\n'}
 
 curl -X POST \
-  -u "${GITHUB_USERNAME}:${GITHUB_PASSWORD}" \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer ${GITHUB_TOKEN}"\
+  -H "X-GitHub-Api-Version: 2022-11-28" \
   --data '{"armored_public_key":"'"${parsed_gpg_key}"'"}' \
   'https://api.github.com/user/gpg_keys'
 
 
 log "Setting up defaults..."
-# Disabling OS X Gate Keeper
-# Allows installing of apps not in App Store
-spctl --master-disable
-sudo defaults write /var/db/SystemPolicy-prefs.plist enabled -string no
-defaults write com.apple.LaunchServices LSQuarantine -bool false
+
+###############################################################################
+# General UI/UX                                                               #
+###############################################################################
+
+# Always show scrollbars
+defaults write NSGlobalDomain AppleShowScrollBars -string "Always"
 
 # Expand save panel by default
 defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
+defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 -bool true
 defaults write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true
 defaults write NSGlobalDomain PMPrintingExpandedStateForPrint2 -bool true
 
-# Check for software updates daily, not just once per week
-defaults write com.apple.SoftwareUpdate ScheduleFrequency -int 1
+# Expand print panel by default
+defaults write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true
+defaults write NSGlobalDomain PMPrintingExpandedStateForPrint2 -bool true
+
+# Disable the “Are you sure you want to open this application?” dialog
+defaults write com.apple.LaunchServices LSQuarantine -bool false
+
+# Remove duplicates in the “Open With” menu (also see `lscleanup` alias)
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user
+
+# Reveal IP address, hostname, OS version, etc. when clicking the clock
+# in the login window
+sudo defaults write /Library/Preferences/com.apple.loginwindow AdminHostInfo HostName
+
+# Disable automatic capitalization as it’s annoying when typing code
+defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
 
 # Disable smart quotes and smart dashes as they are annoying when typing code
 defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
 defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
 
+# Disable automatic period substitution as it’s annoying when typing code
+defaults write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
+
+# Disable auto-correct
+defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+
 # Enabling full keyboard access for all controls (e.g. enable Tab in modal dialogs)
 defaults write NSGlobalDomain AppleKeyboardUIMode -int 3
-
-# Enabling subpixel font rendering on non-Apple LCDs
-defaults write NSGlobalDomain AppleFontSmoothing -int 2
 
 # Showing icons for hard drives, servers, and removable media on the desktop
 defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
@@ -484,45 +521,333 @@ defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
 # Showing all filename extensions in Finder by default
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
 
-# Disabling the warning when changing a file extension
-defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
-
-# Avoiding the creation of .DS_Store files on network volumes
-defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
-
-# Setting email addresses to copy as 'foo@example.com' instead of 'Foo Bar <foo@example.com>' in Mail.app
-defaults write com.apple.mail AddressesIncludeNameOnPasteboard -bool false
-
-# Speeding up wake from sleep to 24 hours from an hour
-# REF: http://www.cultofmac.com/221392/quick-hack-speeds-up-retina-macbooks-wake-from-sleep-os-x-tips/
-sudo pmset -a standbydelay 86400
-
 # Disable annoying backswipe in Chrome
 defaults write com.google.Chrome AppleEnableSwipeNavigateWithScrolls -bool false
 
-# Setting screenshots location to ~/Desktop
+###############################################################################
+# Energy saving                                                               #
+###############################################################################
+
+# Enable lid wakeup
+sudo pmset -a lidwake 1
+
+# Restart automatically on power loss
+sudo pmset -a autorestart 1
+
+# Sleep the display after 15 minutes
+sudo pmset -a displaysleep 15
+
+# Disable machine sleep while charging
+sudo pmset -c sleep 0
+
+# Set machine sleep to 5 minutes on battery
+sudo pmset -b sleep 5
+
+# Set standby delay to 24 hours (default is 1 hour)
+sudo pmset -a standbydelay 86400
+
+###############################################################################
+# Screen                                                                      #
+###############################################################################
+
+# Require password immediately after sleep or screen saver begins
+defaults write com.apple.screensaver askForPassword -int 1
+defaults write com.apple.screensaver askForPasswordDelay -int 0
+
+# Setting screenshots location to ${HOME}/Desktop
 defaults write com.apple.screencapture location -string "$HOME/Desktop"
 
 # Setting screenshot format to PNG
 defaults write com.apple.screencapture type -string "png"
 
+# Enabling subpixel font rendering on non-Apple LCDs
+defaults write NSGlobalDomain AppleFontSmoothing -int 2
+
+###############################################################################
+# Finder                                                                      #
+###############################################################################
+
+# Finder: allow quitting via ⌘ + Q; doing so will also hide desktop icons
+defaults write com.apple.finder QuitMenuItem -bool true
+
+# Finder: disable window animations and Get Info animations
+defaults write com.apple.finder DisableAllAnimations -bool true
+
+# Set Home as the default location for new Finder windows
+defaults write com.apple.finder NewWindowTarget -string "PfLo"
+defaults write com.apple.finder NewWindowTargetPath -string "file://${HOME}/"
+
+# Show icons for hard drives, servers, and removable media on the desktop
+defaults write com.apple.finder ShowExternalHardDrivesOnDesktop -bool true
+defaults write com.apple.finder ShowHardDrivesOnDesktop -bool true
+defaults write com.apple.finder ShowMountedServersOnDesktop -bool true
+defaults write com.apple.finder ShowRemovableMediaOnDesktop -bool true
+
+# Finder: show all filename extensions
+defaults write NSGlobalDomain AppleShowAllExtensions -bool true
+
+# Finder: show status bar
+defaults write com.apple.finder ShowStatusBar -bool true
+
+# Finder: show path bar
+defaults write com.apple.finder ShowPathbar -bool true
+
+# Display full POSIX path as Finder window title
+defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
+
+# Keep folders on top when sorting by name
+defaults write com.apple.finder _FXSortFoldersFirst -bool true
+
+# When performing a search, search the current folder by default
+defaults write com.apple.finder FXDefaultSearchScope -string "SCcf"
+
+# Disable the warning when changing a file extension
+defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
+
+# Avoid creating .DS_Store files on network or USB volumes
+defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
+
+# Use list view in all Finder windows by default
+# Four-letter codes for the other view modes: `icnv`, `clmv`, `glyv`
+defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv"
+
+# Show the /Volumes folder
+sudo chflags nohidden /Volumes
+
+# Remove Dropbox’s green checkmark icons in Finder
+file=/Applications/Dropbox.app/Contents/Resources/emblem-dropbox-uptodate.icns
+[ -e "${file}" ] && mv -f "${file}" "${file}.bak"
+
+# Expand the following File Info panes:
+# “General”, “Open with”, and “Sharing & Permissions”
+defaults write com.apple.finder FXInfoPanesExpanded -dict \
+	General -bool true \
+	OpenWith -bool true \
+	Privileges -bool true
+
+###############################################################################
+# Safari & WebKit                                                             #
+###############################################################################
+
+# Privacy: don’t send search queries to Apple
+defaults write com.apple.Safari UniversalSearchEnabled -bool false
+defaults write com.apple.Safari SuppressSearchSuggestions -bool true
+
+# Press Tab to highlight each item on a web page
+defaults write com.apple.Safari WebKitTabToLinksPreferenceKey -bool true
+defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2TabsToLinks -bool true
+
+# Show the full URL in the address bar (note: this still hides the scheme)
+defaults write com.apple.Safari ShowFullURLInSmartSearchField -bool true
+
+# Set Safari’s home page to `about:blank` for faster loading
+defaults write com.apple.Safari HomePage -string "about:blank"
+
+# Prevent Safari from opening ‘safe’ files automatically after downloading
+defaults write com.apple.Safari AutoOpenSafeDownloads -bool false
+
+# Hide Safari’s bookmarks bar by default
+defaults write com.apple.Safari ShowFavoritesBar -bool false
+
+# Hide Safari’s sidebar in Top Sites
+defaults write com.apple.Safari ShowSidebarInTopSites -bool false
+
+# Enable Safari’s debug menu
+defaults write com.apple.Safari IncludeInternalDebugMenu -bool true
+
+# Make Safari’s search banners default to Contains instead of Starts With
+defaults write com.apple.Safari FindOnPageMatchesWordStartsOnly -bool false
+
+# Remove useless icons from Safari’s bookmarks bar
+defaults write com.apple.Safari ProxiesInBookmarksBar "()"
+
+# Enable the Develop menu and the Web Inspector in Safari
+defaults write com.apple.Safari IncludeDevelopMenu -bool true
+defaults write com.apple.Safari WebKitDeveloperExtrasEnabledPreferenceKey -bool true
+defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2DeveloperExtrasEnabled -bool true
+
+# Add a context menu item for showing the Web Inspector in web views
+defaults write NSGlobalDomain WebKitDeveloperExtras -bool true
+
+# Enable continuous spellchecking
+defaults write com.apple.Safari WebContinuousSpellCheckingEnabled -bool true
+# Disable auto-correct
+defaults write com.apple.Safari WebAutomaticSpellingCorrectionEnabled -bool false
+
+# Warn about fraudulent websites
+defaults write com.apple.Safari WarnAboutFraudulentWebsites -bool true
+
+# Update extensions automatically
+defaults write com.apple.Safari InstallExtensionUpdatesAutomatically -bool true
+
+###############################################################################
+# Mail                                                                        #
+###############################################################################
+
+# Disable send and reply animations in Mail.app
+defaults write com.apple.mail DisableReplyAnimations -bool true
+defaults write com.apple.mail DisableSendAnimations -bool true
+
+# Setting email addresses to copy as 'foo@example.com' instead of 'Foo Bar <foo@example.com>' in Mail.app
+defaults write com.apple.mail AddressesIncludeNameOnPasteboard -bool false
+
+###############################################################################
+# Activity Monitor                                                            #
+###############################################################################
+
+# Show the main window when launching Activity Monitor
+defaults write com.apple.ActivityMonitor OpenMainWindow -bool true
+
+# Visualize CPU usage in the Activity Monitor Dock icon
+defaults write com.apple.ActivityMonitor IconType -int 5
+
+# Show all processes in Activity Monitor
+defaults write com.apple.ActivityMonitor ShowCategory -int 0
+
+# Sort Activity Monitor results by CPU usage
+defaults write com.apple.ActivityMonitor SortColumn -string "CPUUsage"
+defaults write com.apple.ActivityMonitor SortDirection -int 0
+
+###############################################################################
+# Terminal                                                                    #
+###############################################################################
+
+# Enable Secure Keyboard Entry in Terminal.app
+# See: https://security.stackexchange.com/a/47786/8918
+defaults write com.apple.terminal SecureKeyboardEntry -bool true
+
+# Disable the annoying line marks
+defaults write com.apple.Terminal ShowLineMarks -int 0
+
+# Use a modified version of the Solarized Dark theme by default in Terminal.app
+TEMP=$(mktemp -d)
+curl -s -o ${TEMP}/oceanic-next.terminal https://raw.githubusercontent.com/cmorten/oceanic-next/main/oceanic-next.terminal
+open ${TEMP}/oceanic-next.terminal
+
+osascript <<EOD
+tell application "Terminal"
+
+	local allOpenedWindows
+	local initialOpenedWindows
+	local windowID
+	set themeName to "oceanic-next"
+
+	(* Store the IDs of all the open terminal windows. *)
+	set initialOpenedWindows to id of every window
+
+	(* Wait a little bit to ensure that the custom theme is added. *)
+	delay 1
+
+	(* Set the custom theme as the default terminal theme. *)
+	set default settings to settings set themeName
+
+	(* Get the IDs of all the currently opened terminal windows. *)
+	set allOpenedWindows to id of every window
+
+	repeat with windowID in allOpenedWindows
+
+		(* Close the additional windows that were opened in order
+		   to add the custom theme to the list of terminal themes. *)
+		if initialOpenedWindows does not contain windowID then
+			close (every window whose id is windowID)
+
+		(* Change the theme for the initial opened terminal windows
+		   to remove the need to close them in order for the custom
+		   theme to be applied. *)
+		else
+			set current settings of tabs of (every window whose id is windowID) to settings set themeName
+		end if
+
+	end repeat
+
+end tell
+EOD
+
+###############################################################################
+# Mac App Store                                                               #
+###############################################################################
+
+# Enable the WebKit Developer Tools in the Mac App Store
+defaults write com.apple.appstore WebKitDeveloperExtras -bool true
+
+# Enable Debug Menu in the Mac App Store
+defaults write com.apple.appstore ShowDebugMenu -bool true
+
+# Enable the automatic update check
+defaults write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true
+
+# Check for software updates daily, not just once per week
+defaults write com.apple.SoftwareUpdate ScheduleFrequency -int 1
+
+# Download newly available updates in background
+defaults write com.apple.SoftwareUpdate AutomaticDownload -int 1
+
+# Install System data files & security updates
+defaults write com.apple.SoftwareUpdate CriticalUpdateInstall -int 1
+
+# Disabling OS X Gate Keeper
+# Allows installing of apps not in App Store
+sudo spctl --master-disable
+sudo defaults write /var/db/SystemPolicy-prefs.plist enabled -string no
+
+# Turn on app auto-update
+defaults write com.apple.commerce AutoUpdate -bool true
+
+###############################################################################
+# Google Chrome & Google Chrome Canary                                        #
+###############################################################################
+
+# Disable the all too sensitive backswipe on trackpads
+defaults write com.google.Chrome AppleEnableSwipeNavigateWithScrolls -bool false
+defaults write com.google.Chrome.canary AppleEnableSwipeNavigateWithScrolls -bool false
+
+# Disable the all too sensitive backswipe on Magic Mouse
+defaults write com.google.Chrome AppleEnableMouseSwipeNavigateWithScrolls -bool false
+defaults write com.google.Chrome.canary AppleEnableMouseSwipeNavigateWithScrolls -bool false
+
+# Expand the print dialog by default
+defaults write com.google.Chrome PMPrintingExpandedStateForPrint2 -bool true
+defaults write com.google.Chrome.canary PMPrintingExpandedStateForPrint2 -bool true
+
+###############################################################################
+# Misc                                                                        #
+###############################################################################
+
+# Use plain text mode for new TextEdit documents
+defaults write com.apple.TextEdit RichText -int 0
+# Open and save files as UTF-8 in TextEdit
+defaults write com.apple.TextEdit PlainTextEncoding -int 4
+defaults write com.apple.TextEdit PlainTextEncodingForWrite -int 4
+
+# Enable the debug menu in Disk Utility
+defaults write com.apple.DiskUtility DUDebugMenuEnabled -bool true
+defaults write com.apple.DiskUtility advanced-image-options -bool true
+
+# Add iOS & Watch Simulator to Launchpad
+sudo ln -sf "/Applications/Xcode.app/Contents/Developer/Applications/Simulator.app" "/Applications/Simulator.app"
+sudo ln -sf "/Applications/Xcode.app/Contents/Developer/Applications/Simulator (Watch).app" "/Applications/Simulator (Watch).app"
+
+
 killall Finder
 
 
 log "Creating zsh profile..."
-export ZSH=${ZSH:-~/.oh-my-zsh}
+export ZSH=${ZSH:-${HOME}/.oh-my-zsh}
 export ZSH_CUSTOM=${ZSH_CUSTOM:-${ZSH}/custom}
-if [ ! -d ~/.oh-my-zsh ] || [ ! -f ~/.zshrc ]; then
-  rm -rf ~/.zshrc
-  rm -rf ~/.oh-my-zsh
+
+if [ ! -d ${HOME}/.oh-my-zsh ] || [ ! -f ${HOME}/.zshrc ]; then
+  rm -rf ${HOME}/.zshrc
+  rm -rf ${HOME}/.oh-my-zsh
   sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 fi
 
-if [ ! -d ~/git/powerline/fonts ]; then
-  mkdir -p ~/git/powerline
-  git clone git@github.com:powerline/fonts.git ~/git/powerline/fonts
+if [ ! -d ${HOME}/git/powerline/fonts ]; then
+  mkdir -p ${HOME}/git/powerline
+  git clone git@github.com:powerline/fonts.git ${HOME}/git/powerline/fonts
 fi
-~/git/powerline/fonts/install.sh
+
+${HOME}/git/powerline/fonts/install.sh
 
 if [ ! -d ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting ]; then
   git clone git@github.com:zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting
@@ -534,20 +859,41 @@ if [ ! -d ${ZSH_CUSTOM}custom/plugins/kube-aliases ]; then
   git clone git@github.com:Dbz/kube-aliases.git ${ZSH_CUSTOM}custom/plugins/kube-aliases
 fi
 
-gsed -i 's/^ZSH_THEME=.*/ZSH_THEME="agnoster"/' ~/.zshrc
-gsed -n -i '/# -- autogen --/q;p' ~/.zshrc
+gsed -i 's/^ZSH_THEME=.*/ZSH_THEME="agnoster"/' ${HOME}/.zshrc
+gsed -n -i '/# -- autogen --/q;p' ${HOME}/.zshrc
 
-cat >> ~/.zshrc << EOL
+cat >> ${HOME}/.zshrc << EOL
 # -- autogen --
 
 # Custom
 plugins+=(
+  zsh-autosuggestions
   zsh-syntax-highlighting
 )
 source \${ZSH}/oh-my-zsh.sh
-source ~/.bash_profile
+source ${HOME}/.bash_profile
 EOL
 
-zsh -c "source ~/.zshrc"
+patch -p0 --forward --ignore-whitespace --fuzz 10 ${HOME}/.oh-my-zsh/themes/agnoster.zsh-theme << EOF
+--- agnoster.zsh-theme	2021-05-15 18:50:25.000000000 +0100
++++ agnoster.zsh-theme-patched	2023-01-14 17:42:47.000000000 +0000
+@@ -245,10 +245,10 @@
+ ## Main prompt
+ build_prompt() {
+   RETVAL=$?
+-  prompt_status
+-  prompt_virtualenv
+-  prompt_aws
+-  prompt_context
++#  prompt_status
++#  prompt_virtualenv
++#  prompt_aws
++#  prompt_context
+   prompt_dir
+   prompt_git
+   prompt_bzr
+EOF
+
+zsh -c "source ${HOME}/.zshrc"
 
 log "Setup complete..."

@@ -27,3 +27,11 @@ The script makes the assumption that you already hold a GitHub account.
 ## Personalisation
 
 To add / remove apps edit the constant arrays in the `Constants` section.
+
+## Feeling Lucky?
+
+Execute from this repo with commands like:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cmorten/startr/main/startr | bash -s -- -n "Craig Morten"
+```
