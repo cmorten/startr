@@ -18,7 +18,9 @@ options:
 -h, --help      show help
 ```
 
-> Warning: It is recommended that you fork this repo and review the script before running - use at your own risk!
+> **Warning**
+>
+> It is recommended that you fork this repo and review the script before running - use at your own risk!
 
 The script makes the assumption that you have already created a GitHub account.
 
