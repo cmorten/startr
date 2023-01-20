@@ -1,5 +1,113 @@
 #!/bin/bash
 
+## Constants
+
+brews=(
+  bash
+  bash-completion
+  zsh
+  coreutils
+  findutils
+  moreutils
+  openssh
+  grep
+  screen
+  mas
+  tree
+  trash
+  fpp
+  dfc
+  mtr
+  gpg
+  sf-pwgen
+  git
+  git-extras
+  git-fresh
+  git-lfs
+  node
+  deno
+  fnm
+  rustup
+  python
+  python3
+  ruby
+  rbenv
+  ruby-build
+  kubernetes-cli
+  kubernetes-helm
+  azure-cli
+  "bash-snippets --without-all-tools --with-cryptocurrency --with-stocks --with-weather"
+  "fontconfig --universal"
+  "gnuplot --with-qt"
+  "gnu-sed --with-default-names"
+  "imagemagick --with-webp"
+  "vim --with-override-system-vi"
+  "wget --with-iri"
+)
+
+casks=(
+  java
+  gpg-suite
+  spotify
+  slack
+  visual-studio-code
+  android-platform-tools
+  docker
+  firefox
+  google-chrome
+)
+
+apps=()
+
+pips=(
+  pip
+  setuptools
+  wheel
+  powerline-status
+)
+
+gems=(
+  bundler
+)
+
+npms=(
+  n
+  npm
+  yarn
+  eslint
+)
+
+vscodes=(
+  "streetsidesoftware.code-spell-checker"
+  "denoland.vscode-deno"
+  "ms-azuretools.vscode-docker"
+  "dbaeumer.vscode-eslint"
+  "waderyan.gitblame"
+  "pkief.material-icon-theme"
+  "christian-kohler.path-intellisense"
+  "esbenp.prettier-vscode"
+  "wayou.vscode-todo-highlight"
+)
+
+git_configs=(
+  "branch.autoSetupRebase always"
+  "color.ui auto"
+  "core.autocrlf input"
+  "core.symlinks true"
+  "credential.helper osxkeychain"
+  "merge.ff false"
+  "pull.rebase true"
+  "push.default simple"
+  "rebase.autostash true"
+  "rerere.autoUpdate true"
+  "rerere.enabled true"
+  "commit.gpgsign true"
+  "gpg.program gpg2"
+  "init.defaultbranch main"
+)
+
+## Init
+
 function log() {
     m_time=`date "+%F %T"`
     echo -e "${m_time} [startr]: $1"
@@ -112,112 +220,6 @@ if [[ -z ${GITHUB_TOKEN} ]]; then
   print_usage
   exit 1
 fi
-
-## Constants
-
-brews=(
-  bash
-  bash-completion
-  zsh
-  coreutils
-  findutils
-  moreutils
-  openssh
-  grep
-  screen
-  mas
-  tree
-  trash
-  fpp
-  dfc
-  mtr
-  gpg
-  sf-pwgen
-  git
-  git-extras
-  git-fresh
-  git-lfs
-  node
-  deno
-  fnm
-  rustup
-  python
-  python3
-  ruby
-  rbenv
-  ruby-build
-  kubernetes-cli
-  kubernetes-helm
-  azure-cli
-  "bash-snippets --without-all-tools --with-cryptocurrency --with-stocks --with-weather"
-  "fontconfig --universal"
-  "gnuplot --with-qt"
-  "gnu-sed --with-default-names"
-  "imagemagick --with-webp"
-  "vim --with-override-system-vi"
-  "wget --with-iri"
-)
-
-casks=(
-  java
-  gpg-suite
-  spotify
-  slack
-  visual-studio-code
-  android-platform-tools
-  docker
-  firefox
-  google-chrome
-)
-
-apps=()
-
-pips=(
-  pip
-  setuptools
-  wheel
-  powerline-status
-)
-
-gems=(
-  bundler
-)
-
-npms=(
-  n
-  npm
-  yarn
-  eslint
-)
-
-vscodes=(
-  "streetsidesoftware.code-spell-checker"
-  "denoland.vscode-deno"
-  "ms-azuretools.vscode-docker"
-  "dbaeumer.vscode-eslint"
-  "waderyan.gitblame"
-  "pkief.material-icon-theme"
-  "christian-kohler.path-intellisense"
-  "esbenp.prettier-vscode"
-  "wayou.vscode-todo-highlight"
-)
-
-git_configs=(
-  "branch.autoSetupRebase always"
-  "color.ui auto"
-  "core.autocrlf input"
-  "core.symlinks true"
-  "credential.helper osxkeychain"
-  "merge.ff false"
-  "pull.rebase true"
-  "push.default simple"
-  "rebase.autostash true"
-  "rerere.autoUpdate true"
-  "rerere.enabled true"
-  "commit.gpgsign true"
-  "gpg.program gpg2"
-  "init.defaultbranch main"
-)
 
 ## Utils
 

@@ -18,19 +18,15 @@ options:
 -h, --help      show help
 ```
 
-In the latter stages of the script, it changes the shell to `zsh`. If run originally in a bash shell, the script will need to be run twice to complete fully.
+> Warning: It is recommended that you fork this repo and review the script before running - use at your own risk!
 
-## Assumptions
-
-The script makes the assumption that you already hold a GitHub account.
-
-## Personalisation
+The script makes the assumption that you have already created a GitHub account.
 
 To add / remove apps edit the constant arrays in the `Constants` section.
 
-## Feeling Lucky?
+## Easy Install
 
-Execute from this repo with commands like:
+Run the script directly from this repo with commands like:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cmorten/startr/main/startr | bash -s -- -n "Craig Morten"
