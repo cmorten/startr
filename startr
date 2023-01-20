@@ -221,16 +221,6 @@ git_configs=(
 
 ## Utils
 
-function dget() {
-  temp_dir=$(mktemp -d)
-  mkdir -p ${temp_dir}/mount
-  curl -fsSL ${1} > ${temp_dir}/package.dmg
-  yes | hdiutil attach -noverify -nobrowse ${temp_dir}/package.dmg
-  cp -r ${temp_dir}/mount/*.app /Applications
-  hdiutil detach {temp_dir}/mount
-  rm -rf ${temp_dir}
-}
-
 function wrap {
   cmd=$1
   shift
