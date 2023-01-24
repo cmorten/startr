@@ -841,12 +841,6 @@ ${HOME}/git/powerline/fonts/install.sh
 if [ ! -d ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting ]; then
   git clone git@github.com:zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM}/plugins/zsh-syntax-highlighting
 fi
-if [ ! -d ${ZSH_CUSTOM}/plugins/zsh-autosuggestions ]; then
-  git clone git@github.com:zsh-users/zsh-autosuggestions ${ZSH_CUSTOM}/plugins/zsh-autosuggestions
-fi
-if [ ! -d ${ZSH_CUSTOM}custom/plugins/kube-aliases ]; then
-  git clone git@github.com:Dbz/kube-aliases.git ${ZSH_CUSTOM}custom/plugins/kube-aliases
-fi
 
 gsed -i 's/^ZSH_THEME=.*/ZSH_THEME="agnoster"/' ${HOME}/.zshrc
 gsed -n -i '/# -- autogen --/q;p' ${HOME}/.zshrc
@@ -856,7 +850,6 @@ cat >> ${HOME}/.zshrc << EOL
 
 # Custom
 plugins+=(
-  zsh-autosuggestions
   zsh-syntax-highlighting
 )
 source \${ZSH}/oh-my-zsh.sh
