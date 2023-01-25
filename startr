@@ -104,6 +104,7 @@ git_configs=(
   "commit.gpgsign true"
   "gpg.program gpg2"
   "init.defaultbranch main"
+  "push.autoSetupRemote true"
 )
 
 ## Init
